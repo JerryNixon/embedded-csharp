@@ -40,7 +40,7 @@ public class EmbeddedCSharp
             catch (Exception ex)
             {
                 ScriptError = ex;
-                return new Return(Error: ex.Message);
+                return new Return(ErrorMessage: ex.Message);
             }
         }
 
@@ -51,7 +51,7 @@ public class EmbeddedCSharp
     {
         if (ScriptError != null)
         {
-            return new Return(Error: ScriptError.Message);
+            return new Return(ErrorMessage: ScriptError.Message);
         }
 
         try
@@ -62,7 +62,7 @@ public class EmbeddedCSharp
         }
         catch (Exception ex)
         {
-            return new Return(Error: ex.Message);
+            return new Return(ErrorMessage: ex.Message);
         }
     }
 
@@ -112,5 +112,5 @@ public class EmbeddedCSharp
         };
     }
 
-    public record Return(bool Success = false, bool Valid = false, string? Error = null);
+    public record Return(bool Success = false, bool Valid = false, string ErrorMessage = "None");
 }

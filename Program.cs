@@ -1,62 +1,36 @@
-﻿using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
-
-public class Program
+﻿public class Program
 {
-    private static async Task Main(string[] args)
-    {
-        Console.WriteLine("What is the value of the field? Example: 123");
-        var value = (object)123;
+	private static async Task Main(string[] args)
+	{
+		Console.WriteLine("With item 123");
+		Console.WriteLine("With script 'item > 10'");
 
-        Console.WriteLine("What is the validation script? Example: item > 10");
-		var script = "(int)item > 10"; // Cast item to int
+		await RunScriptEvaluation("item > 10", 123);
 
-        Console.WriteLine("Running...");
+		while (true)
+		{
+			Console.WriteLine();
+			Console.WriteLine("Now you try.");
+			Console.WriteLine("---");
+			Console.WriteLine();
 
-        // Run script and get the result
-        var (success, result, error) = await ExecuteScript(script, value);
+			Console.WriteLine("What is the value of the field? Example: 123");
+			var value = Console.ReadLine()?.Trim();
 
-        if (success)
-        {
-            Console.WriteLine($"Script executed successfully: {result}");
-        }
-        else
-        {
-            Console.WriteLine($"Script execution failed: {error}");
-        }
-		Console.ReadKey();
-    }
+			Console.WriteLine("What is the validation script? Example: item > 10");
+			var scriptCode = Console.ReadLine()?.Trim();
 
-    public class ScriptGlobals
-    {
-        public object item { get; set; }
-    }
+			await RunScriptEvaluation(scriptCode!, value!);
+		}
+	}
 
-    public static async Task<(bool, bool?, string?)> ExecuteScript(string scriptCode, object value)
-    {
-        try
-        {
-            scriptCode = $"return {scriptCode.Trim()};";
+	// Reusable method for running script evaluations
+	private static async Task RunScriptEvaluation(string scriptCode, object value)
+	{
+		Console.WriteLine("Running...");
+		var scriptUtil = new ScriptUtil(scriptCode);
 
-            var scriptOptions = ScriptOptions.Default
-                .AddReferences(typeof(Math).Assembly)
-                .AddImports("System", "System.Math", "System.Text");
-
-            // Use a global object to pass variables into the script
-            var globals = new ScriptGlobals { item = value };
-
-            // Evaluate the script
-            var result = await CSharpScript.EvaluateAsync<bool>(scriptCode, scriptOptions, globals);
-
-            return (true, result, null);
-        }
-        catch (CompilationErrorException ex)
-        {
-            return (false, null, string.Join(Environment.NewLine, ex.Diagnostics));
-        }
-        catch (Exception ex)
-        {
-            return (false, null, ex.Message);
-        }
-    }
+		var (success, result, error) = await scriptUtil.EvaluateAsync(value);
+		Console.WriteLine($"Success: {success} Result: {result} Error: {error ?? "None"}");
+	}
 }

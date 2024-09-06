@@ -6,54 +6,49 @@ public class EmbeddedCSharp
 {
     public class ScriptGlobals
     {
-        public dynamic row { get; } // Change to dynamic
+        public dynamic item { get; }
 
-        // Constructor to handle casting
         public ScriptGlobals((string Name, object Value)[] values)
         {
-            row = new ExpandoObject();  // Initialize as ExpandoObject
-
-            // Cast to IDictionary to populate dynamic object
-            var rowDictionary = (IDictionary<string, object>)row;
-
+            item = new ExpandoObject();
             foreach (var (name, value) in values)
             {
-                rowDictionary.Add(name, ParseToNativeType(value));
+                ((IDictionary<string, object>)item).Add(name, ParseToNativeType(value));
             }
         }
     }
 
-    public Exception? ScriptError { get; }
+    public Exception? ScriptError { get; private set; }
+    private ScriptRunner<bool>? _compiledScript;
 
-    private readonly ScriptRunner<bool>? _compiledScript;
-
-    public EmbeddedCSharp(string scriptCode)
+    public async Task<Return> EvaluateAsync(string scriptCode, params (string Name, object Value)[] values)
     {
-        try
+        if (_compiledScript == null)
         {
-            // Prepare the script for compilation
-            scriptCode = $"return {scriptCode.Trim()};";
+            try
+            {
+                scriptCode = $"return {scriptCode.Trim()};";
 
-            var scriptOptions = ScriptOptions.Default
-                .AddReferences(typeof(Math).Assembly)
-				.AddReferences(typeof(Microsoft.CSharp.RuntimeBinder.Binder).Assembly)
-                .AddImports("System", "System.Math", "System.Text");
+                var scriptOptions = ScriptOptions.Default
+                    .AddReferences(typeof(Math).Assembly)
+                    .AddReferences(typeof(Microsoft.CSharp.RuntimeBinder.Binder).Assembly)
+                    .AddImports("System", "System.Math", "System.Text");
 
-            // Compile the script once in the constructor
-            var script = CSharpScript.Create<bool>(scriptCode, scriptOptions, typeof(ScriptGlobals));
-            _compiledScript = script.CreateDelegate();
+                var script = CSharpScript.Create<bool>(scriptCode, scriptOptions, typeof(ScriptGlobals));
+                _compiledScript = script.CreateDelegate();
+            }
+            catch (Exception ex)
+            {
+                ScriptError = ex;
+                return new Return(Error: ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            ScriptError = ex;
-        }
+
+        return await EvaluateScript(values);
     }
 
-    public record Return(bool Success = false, bool Valid = false, string? Error = null);
-
-    public async Task<Return> EvaluateAsync(params (string Name, object Value)[] values)
+    private async Task<Return> EvaluateScript(params (string Name, object Value)[] values)
     {
-        // Return if there was an error during script compilation
         if (ScriptError != null)
         {
             return new Return(Error: ScriptError.Message);
@@ -71,31 +66,51 @@ public class EmbeddedCSharp
         }
     }
 
-    public static object ParseToNativeType(object value)
+    public static object? ParseToNativeType(object value)
     {
         if (value == null)
         {
-            return null!;
+            return null;
         }
-        var strValue = value.ToString();
-        return strValue switch
+
+        return value switch
         {
-            _ when bool.TryParse(strValue, out bool boolResult) => boolResult,
-            _ when byte.TryParse(strValue, out byte byteResult) => byteResult,
-            _ when sbyte.TryParse(strValue, out sbyte sbyteResult) => sbyteResult,
-            _ when short.TryParse(strValue, out short shortResult) => shortResult,
-            _ when ushort.TryParse(strValue, out ushort ushortResult) => ushortResult,
-            _ when int.TryParse(strValue, out int intResult) => intResult,
-            _ when uint.TryParse(strValue, out uint uintResult) => uintResult,
-            _ when long.TryParse(strValue, out long longResult) => longResult,
-            _ when ulong.TryParse(strValue, out ulong ulongResult) => ulongResult,
-            _ when float.TryParse(strValue, out float floatResult) => floatResult,
-            _ when double.TryParse(strValue, out double doubleResult) => doubleResult,
-            _ when decimal.TryParse(strValue, out decimal decimalResult) => decimalResult,
-            _ when char.TryParse(strValue, out char charResult) => charResult,
-            _ when DateTime.TryParse(strValue, out DateTime dateResult) => dateResult,
-            _ when Guid.TryParse(strValue, out Guid guidResult) => guidResult,
-            _ => value
+            bool _ => value,
+            byte _ => value,
+            sbyte _ => value,
+            short _ => value,
+            ushort _ => value,
+            int _ => value,
+            uint _ => value,
+            long _ => value,
+            ulong _ => value,
+            float _ => value,
+            double _ => value,
+            decimal _ => value,
+            char _ => value,
+            DateTime _ => value,
+            Guid _ => value,
+            _ => value.ToString() switch
+            {
+                _ when bool.TryParse(value.ToString(), out bool boolResult) => boolResult,
+                _ when byte.TryParse(value.ToString(), out byte byteResult) => byteResult,
+                _ when sbyte.TryParse(value.ToString(), out sbyte sbyteResult) => sbyteResult,
+                _ when short.TryParse(value.ToString(), out short shortResult) => shortResult,
+                _ when ushort.TryParse(value.ToString(), out ushort ushortResult) => ushortResult,
+                _ when int.TryParse(value.ToString(), out int intResult) => intResult,
+                _ when uint.TryParse(value.ToString(), out uint uintResult) => uintResult,
+                _ when long.TryParse(value.ToString(), out long longResult) => longResult,
+                _ when ulong.TryParse(value.ToString(), out ulong ulongResult) => ulongResult,
+                _ when float.TryParse(value.ToString(), out float floatResult) => floatResult,
+                _ when double.TryParse(value.ToString(), out double doubleResult) => doubleResult,
+                _ when decimal.TryParse(value.ToString(), out decimal decimalResult) => decimalResult,
+                _ when char.TryParse(value.ToString(), out char charResult) => charResult,
+                _ when DateTime.TryParse(value.ToString(), out DateTime dateResult) => dateResult,
+                _ when Guid.TryParse(value.ToString(), out Guid guidResult) => guidResult,
+                _ => value
+            }
         };
     }
+
+    public record Return(bool Success = false, bool Valid = false, string? Error = null);
 }

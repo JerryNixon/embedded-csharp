@@ -17,7 +17,7 @@
         while (true)
         {
             Console.WriteLine();
-            Console.WriteLine("Now enter the validation script. Example: item.id > 10");
+            Console.WriteLine("Now enter the validation script. Example: @item.id > 10");
             var scriptCode = Console.ReadLine()?.Trim();
 
             await RunScriptEvaluation(scriptCode!);
@@ -39,8 +39,8 @@
         }
 
         Console.WriteLine();
-        Console.WriteLine("You can reference these columns in your script using item.<column-name>");
-        Console.WriteLine("For example: item.id > 100 or item.is_active == true or item.last_login == null");
+        Console.WriteLine("You can reference these columns in your script using @item.<column-name>");
+        Console.WriteLine("For example: @item.id > 100 or @item.is_active == true or @item.last_login == null");
         Console.WriteLine();
     }
 

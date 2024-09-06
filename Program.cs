@@ -16,6 +16,7 @@
 
 			Console.WriteLine("What is the value of the field? Example: 123");
 			var value = Console.ReadLine()?.Trim();
+			if (string.IsNullOrEmpty(value)) value = null;
 
 			Console.WriteLine("What is the validation script? Example: item > 10");
 			var scriptCode = Console.ReadLine()?.Trim();
@@ -28,9 +29,8 @@
 	private static async Task RunScriptEvaluation(string scriptCode, object value)
 	{
 		Console.WriteLine("Running...");
-		var scriptUtil = new ScriptUtil(scriptCode);
-
-		var (success, result, error) = await scriptUtil.EvaluateAsync(value);
-		Console.WriteLine($"Success: {success} Result: {result} Error: {error ?? "None"}");
+		var embeddedScript = new EmbeddedScript(scriptCode);
+		var result = await embeddedScript.EvaluateAsync(value);
+		Console.WriteLine(result.ToString());
 	}
 }

@@ -49,7 +49,7 @@ public class EmbeddedCSharp
         }
     }
 
-    public record Return(bool Success = false, bool Result = false, string? Error = null);
+    public record Return(bool Success = false, bool Valid = false, string? Error = null);
 
     public async Task<Return> EvaluateAsync(params (string Name, object Value)[] values)
     {
@@ -63,7 +63,7 @@ public class EmbeddedCSharp
         {
             var globals = new ScriptGlobals(values);
             var result = await _compiledScript!(globals);
-            return new Return(Success: true, Result: result);
+            return new Return(Success: true, Valid: result);
         }
         catch (Exception ex)
         {

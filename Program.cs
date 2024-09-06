@@ -46,8 +46,8 @@ public class Program
         }
 
         Console.WriteLine();
-        Console.WriteLine("You can reference these columns in your script using row[\"column-name\"]");
-        Console.WriteLine("For example: row[\"id\"] > 100 or row[\"is_active\"] == true or row[\"last_login\"] == null");
+        Console.WriteLine("You can reference these columns in your script using row.<column-name>");
+        Console.WriteLine("For example: row.id > 100 or row.is_active == true or row.last_login == null");
         Console.WriteLine();
     }
 

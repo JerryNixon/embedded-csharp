@@ -1,5 +1,14 @@
 ﻿public class Program
 {
+    public static async Task Main(string[] args)
+    {
+        var demo = new Demo();
+        await demo.RunAsync();
+    }
+}
+
+public class Demo
+{
     private static readonly (string Name, object Value)[] sampleRow = new (string Name, object Value)[]
     {
         ("id", 123),
@@ -10,17 +19,28 @@
         ("last_login", null!)
     };
 
-    private static async Task Main(string[] args)
+    private readonly EmbeddedCSharp embeddedScript = new EmbeddedCSharp();
+
+    public async Task RunAsync()
     {
         OutputSampleRow();
 
         while (true)
         {
             Console.WriteLine();
-            Console.WriteLine("Now enter the validation script. Example: @item.id > 10");
+            Console.WriteLine("Enter the validation script code. Example: @item.id > 10");
             var scriptCode = Console.ReadLine()?.Trim();
 
-            await RunScriptEvaluation(scriptCode!);
+            if (string.IsNullOrEmpty(scriptCode))
+            {
+                Console.WriteLine("Script code cannot be empty.");
+                continue;
+            }
+
+            Console.WriteLine("Running...");
+            embeddedScript.PreCompileScript("demo-script", scriptCode);
+            var result = await embeddedScript.EvaluateAsync("demo-script", sampleRow);
+            Console.WriteLine(result.ToString());
         }
     }
 
@@ -42,13 +62,5 @@
         Console.WriteLine("You can reference these columns in your script using @item.<column-name>");
         Console.WriteLine("For example: @item.id > 100 or @item.is_active == true or @item.last_login == null");
         Console.WriteLine();
-    }
-
-    private static async Task RunScriptEvaluation(string scriptCode)
-    {
-        Console.WriteLine("Running...");
-        var embeddedScript = new EmbeddedCSharp();
-        var result = await embeddedScript.EvaluateAsync(scriptCode, sampleRow);
-        Console.WriteLine(result.ToString());
     }
 }

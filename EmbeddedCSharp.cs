@@ -13,41 +13,45 @@ public class EmbeddedCSharp
             item = new ExpandoObject();
             foreach (var (name, value) in values)
             {
-                ((IDictionary<string, object>)item).Add(name, ParseToNativeType(value));
+                ((IDictionary<string, object>)item).Add(name, ParseToNativeType(value)!);
             }
         }
     }
 
     public Exception? ScriptError { get; private set; }
-    private ScriptRunner<bool>? _compiledScript;
+    private readonly Dictionary<string, ScriptRunner<bool>> _compiledScripts = new();
 
-    public async Task<Return> EvaluateAsync(string scriptCode, params (string Name, object Value)[] values)
+    public async Task<Return> EvaluateAsync(string scriptName, params (string Name, object Value)[] values)
     {
-        if (_compiledScript == null)
+        if (!_compiledScripts.ContainsKey(scriptName))
         {
-            try
-            {
-                scriptCode = $"return {scriptCode.Trim()};";
-
-                var scriptOptions = ScriptOptions.Default
-                    .AddReferences(typeof(Math).Assembly)
-                    .AddReferences(typeof(Microsoft.CSharp.RuntimeBinder.Binder).Assembly)
-                    .AddImports("System", "System.Math", "System.Text");
-
-                var script = CSharpScript.Create<bool>(scriptCode, scriptOptions, typeof(ScriptGlobals));
-                _compiledScript = script.CreateDelegate();
-            }
-            catch (Exception ex)
-            {
-                ScriptError = ex;
-                return new Return(ErrorMessage: ex.Message);
-            }
+            return new Return(ErrorMessage: $"Script '{scriptName}' not found.");
         }
 
-        return await EvaluateScript(values);
+        return await EvaluateScript(_compiledScripts[scriptName], values);
     }
 
-    private async Task<Return> EvaluateScript(params (string Name, object Value)[] values)
+    public void PreCompileScript(string name, string scriptCode)
+    {
+        try
+        {
+            scriptCode = $"return {scriptCode.Trim()};";
+
+            var scriptOptions = ScriptOptions.Default
+                .AddReferences(typeof(Math).Assembly)
+                .AddReferences(typeof(Microsoft.CSharp.RuntimeBinder.Binder).Assembly)
+                .AddImports("System", "System.Math", "System.Text");
+
+            var script = CSharpScript.Create<bool>(scriptCode, scriptOptions, typeof(ScriptGlobals));
+            _compiledScripts[name] = script.CreateDelegate();
+        }
+        catch (Exception ex)
+        {
+            ScriptError = ex;
+        }
+    }
+
+    private async Task<Return> EvaluateScript(ScriptRunner<bool> compiledScript, params (string Name, object Value)[] values)
     {
         if (ScriptError != null)
         {
@@ -57,7 +61,7 @@ public class EmbeddedCSharp
         try
         {
             var globals = new ScriptGlobals(values);
-            var result = await _compiledScript!(globals);
+            var result = await compiledScript(globals);
             return new Return(Success: true, Valid: result);
         }
         catch (Exception ex)

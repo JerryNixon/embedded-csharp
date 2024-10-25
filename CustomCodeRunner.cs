@@ -43,20 +43,9 @@ public class CustomCodeRunner
 
         var root = tree.GetRoot();
 
-        // List of disallowed types (can be extended as needed)
-        var disallowedTypes = new HashSet<string>
-        {
-            "Environment",
-            "File",
-            "Process",
-            "Console",
-            "AppDomain",
-            "Path"
-        };
-
         var usesDisallowedTypes = root.DescendantNodes()
             .OfType<IdentifierNameSyntax>()
-            .Any(identifier => disallowedTypes.Contains(identifier.Identifier.Text));
+            .Any(identifier => DisallowedTypes.Contains(identifier.Identifier.Text));
 
         if (usesDisallowedTypes)
         {
@@ -269,6 +258,128 @@ public class CustomCodeRunner
             throw new InvalidOperationException($"Unexpected error: {ex.Message}", ex);
         }
     }
+
+    HashSet<string> DisallowedTypes =
+    [
+        // Core System Types
+        "Environment",
+        "Console",
+        "AppDomain",
+        "GC",  // Garbage Collector
+
+        // File System Access
+        "File",
+        "FileInfo",
+        "Directory",
+        "DirectoryInfo",
+        "Path",
+        "DriveInfo",
+
+        // Process and Diagnostics
+        "Process",
+        "ProcessStartInfo",
+        "EventLog",
+        "EventLogEntry",
+        "PerformanceCounter",
+    
+        // Registry Access
+        "Registry",
+        "RegistryKey",
+    
+        // Networking and Web
+        "WebClient",
+        "HttpClient",
+        "WebRequest",
+        "HttpRequest",
+        "Dns",
+        "Socket",
+        "NetworkStream",
+        "TcpClient",
+        "TcpListener",
+        "UdpClient",
+        "NamedPipeClientStream",
+        "NamedPipeServerStream",
+    
+        // Security and Cryptography
+        "CryptoStream",
+        "SymmetricAlgorithm",
+        "AsymmetricAlgorithm",
+        "RSA",
+        "DSA",
+        "SHA256",
+        "SHA512",
+        "SHA1",
+        "MD5",
+        "ProtectedData",
+        "Aes",
+    
+        // Reflection and Dynamic Code Execution
+        "Activator",
+        "Assembly",
+        "AssemblyBuilder",
+        "AssemblyName",
+        "FieldInfo",
+        "MethodInfo",
+        "PropertyInfo",
+        "ConstructorInfo",
+        "TypeInfo",
+        "Type",
+        "MethodBase",
+        "DynamicMethod",
+        "ILGenerator",
+        "ParameterInfo",
+
+        // Threading and Synchronization
+        "Thread",
+        "ThreadPool",
+        "Task",
+        "Timer",
+        "CancellationToken",
+        "Semaphore",
+        "Mutex",
+        "AutoResetEvent",
+        "ManualResetEvent",
+    
+        // Unsafe and Unmanaged Code
+        "GCHandle",
+        "Marshal",
+        "SafeHandle",
+        "UnmanagedFunctionPointer",
+        "DllImport",
+        "StructLayout",
+        "SecurityCriticalAttribute",
+        "SecuritySafeCriticalAttribute",
+    
+        // Serialization
+        "BinaryFormatter",
+        "SoapFormatter",
+        "Formatter",
+        "DataContractSerializer",
+        "XmlSerializer",
+    
+        // Unsafe Memory Management
+        "Pointer",
+        "Span",
+        "Memory",
+        "MemoryManager",
+        "FixedBuffer",
+    
+        // PInvoke and Interop
+        "DllImportAttribute",
+        "UnmanagedType",
+        "CallingConvention",
+        "ComImportAttribute",
+        "ExternAttribute",
+    
+        // System.Diagnostics (additional types)
+        "StackTrace",
+        "StackFrame",
+        "Debug",
+        "Trace",
+        "Debugger",
+        "DebuggerStepThroughAttribute",
+        "ConditionalAttribute"
+    ];
 }
 
 public class Parameter

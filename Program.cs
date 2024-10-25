@@ -80,7 +80,7 @@ internal class Program
             Console.WriteLine($"@{claim}");
 
             Console.WriteLine();
-            Console.WriteLine("Write your own predicate:");
+            Console.WriteLine("Write your own predicate like: @item.Id == 1");
             Run(Console.ReadLine()!);
 
             Console.ReadLine();

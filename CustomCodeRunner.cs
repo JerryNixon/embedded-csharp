@@ -58,7 +58,8 @@ public class CustomCodeRunner
             .Select(ExtractFullNamespace)
             .Where(ns => !string.IsNullOrEmpty(ns)
                          && !_allowedNamespaces.Contains(ns)
-                         && !instanceVariablePattern.IsMatch(ns));
+                         && !instanceVariablePattern.IsMatch(ns)
+                         && !_allowedNamespaces.Any(x => !ns.StartsWith(x)));
 
         // Detect any usage of `typeof` or `GetType`
         var usesReflection = root.DescendantNodes()

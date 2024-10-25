@@ -4,7 +4,7 @@ internal class Program
 {
     private static void Main(string[] args)
     {
-        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true, "{ 'option': true }");
+        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true, "{ \"option\": true }");
         var claim = new claims(true, true, true, true);
 
         Console.WriteLine(Environment.OSVersion);
@@ -19,6 +19,7 @@ internal class Program
             Console.WriteLine("   @item.Id == 1");
             Console.WriteLine("   @item.Id == Math.Min(1, 2)");
             Console.WriteLine("   @item.Name.Contains('J')");
+            Console.WriteLine("   @item.Name.Substring(1, 1) == \"o\"");
             Console.WriteLine("   Regex.IsMatch(@item.Name, \"j\", RegexOptions.IgnoreCase)");
             Console.WriteLine("   @item.Name.Length > 5");
             Console.WriteLine("   @item.Created.Year == 2000");
@@ -29,6 +30,9 @@ internal class Program
             Console.WriteLine("   @item.Id == 1 && !@claims.Read");
             Console.WriteLine("   (@claims.Read != @claims.Update) || @item.Admin");
             Console.WriteLine("   new[] { @item.Admin, @claims.Read }.All(x => x)");
+            Console.WriteLine("   int.TryParse(@item.Id.ToString(), out int number) ? number == 1 : false");
+            Console.WriteLine("   JsonDocument.Parse(@item.Info).RootElement.GetProperty(\"option\").GetBoolean() == true");
+
             Console.ForegroundColor = ConsoleColor.Yellow;
 
             var code = Console.ReadLine();

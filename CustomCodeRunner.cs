@@ -22,6 +22,7 @@ public class CustomCodeRunner
         [
             "System",
             "System.Text",
+            "System.Linq",
             "System.Text.Json",
             "System.Text.RegularExpressions",
             "System.Math"

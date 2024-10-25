@@ -12,14 +12,21 @@ internal class Program
 
         while (true)
         {
+            Console.ResetColor();
             Console.WriteLine();
             Console.WriteLine("Write a predicate like:");
             Console.WriteLine("   @item.Id == 1");
             Console.WriteLine("   @item.Name.Contains('J')");
+            Console.WriteLine("   @item.Name.Length > 5");
             Console.WriteLine("   @item.Created.Year == 2000");
             Console.WriteLine("   @claims.Read == true");
-            Console.WriteLine("   @item.Id == 1 && @claims.Read == true");
+            Console.WriteLine("   @claims.Read");
+            Console.WriteLine("   @claims.Read == @claims.Update");
+            Console.WriteLine("   Equals(@claims.Read, @claims.Update)");
+            Console.WriteLine("   @item.Id == 1 && !@claims.Read");
             Console.WriteLine("   (@claims.Read != @claims.Update) || @item.Admin");
+            Console.WriteLine("   new[] { @item.Admin, @claims.Read }.All(x => x)");
+            Console.ForegroundColor = ConsoleColor.Yellow;
 
             var code = Console.ReadLine();
 

@@ -1,54 +1,77 @@
-﻿public class Program
-{
-    private static readonly (string Name, object Value)[] sampleRow = new (string Name, object Value)[]
-    {
-        ("id", 123),
-        ("name", "John Doe"),
-        ("is_active", true),
-        ("created_date", new DateTime(2023, 9, 6)),
-        ("price", 19.99m),
-        ("last_login", null!)
-    };
+﻿using embedded_csharp;
 
-    private static async Task Main(string[] args)
+internal class Program
+{
+    private static void Main(string[] args)
     {
-        OutputSampleRow();
+        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true);
+        var claim = new claims(true, true, true, true);
+
+        Console.WriteLine($"@{item}");
+        Console.WriteLine($"@{claim}");
 
         while (true)
         {
             Console.WriteLine();
-            Console.WriteLine("Now enter the validation script. Example: @item.id > 10");
-            var scriptCode = Console.ReadLine()?.Trim();
+            Console.WriteLine("Write a predicate like:");
+            Console.WriteLine("   @item.Id == 1");
+            Console.WriteLine("   @item.Name.Contains('J')");
+            Console.WriteLine("   @item.Created.Year == 2000");
+            Console.WriteLine("   @claims.Read == true");
+            Console.WriteLine("   @item.Id == 1 && @claims.Read == true");
+            Console.WriteLine("   (@claims.Read != @claims.Update) || @item.Admin");
 
-            await RunScriptEvaluation(scriptCode!);
+            var code = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                Console.WriteLine("Invalid input. Please provide a valid predicate.");
+            }
+
+            var runner = new CustomCodeRunner();
+            if (!runner.Compile(code!, out var errors))
+            {
+                Console.WriteLine(errors);
+                continue;
+            }
+
+            try
+            {
+                var result = runner.Execute(item.ToArray(), claim.ToArray());
+                Console.WriteLine($"Execution result: {result}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Execution failed: {ex.Message}");
+            }
         }
     }
+}
 
-    private static void OutputSampleRow()
+record item(string Id, string Name, DateOnly Created, bool Admin)
+{
+    public (string, object)[] ToArray()
     {
-        Console.WriteLine("Sample SQL Table Row:");
-        Console.WriteLine("------------------------------");
-        Console.WriteLine($"{"Column Name",-15} {"Type",-15} {"Value",-15}");
-        Console.WriteLine("------------------------------");
-
-        foreach (var (name, value) in sampleRow)
-        {
-            string type = value?.GetType().Name ?? "null"; // Get the type or show "null"
-            string displayValue = value?.ToString() ?? "null"; // Display "null" if the value is null
-            Console.WriteLine($"{name,-15} {type,-15} {displayValue,-15}");
-        }
-
-        Console.WriteLine();
-        Console.WriteLine("You can reference these columns in your script using @item.<column-name>");
-        Console.WriteLine("For example: @item.id > 100 or @item.is_active == true or @item.last_login == null");
-        Console.WriteLine();
+        return
+        [
+            ("Id", Id),
+            ("Name", Name),
+            ("Created", Created),
+            ("Admin", Admin)
+        ];
     }
+}
 
-    private static async Task RunScriptEvaluation(string scriptCode)
+record claims(bool Create, bool Read, bool Update, bool Delete)
+{
+    public (string, object)[] ToArray()
     {
-        Console.WriteLine("Running...");
-        var embeddedScript = new EmbeddedCSharp();
-        var result = await embeddedScript.EvaluateAsync(scriptCode, sampleRow);
-        Console.WriteLine(result.ToString());
+        return
+        [
+            ("Create", Create),
+            ("Read", Read),
+            ("Update", Update),
+            ("Delete", Delete)
+        ];
     }
 }

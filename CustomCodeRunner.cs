@@ -43,6 +43,26 @@ public class CustomCodeRunner
 
         var root = tree.GetRoot();
 
+        // List of disallowed types (can be extended as needed)
+        var disallowedTypes = new HashSet<string>
+        {
+            "Environment",
+            "File",
+            "Process",
+            "Console",
+            "AppDomain",
+            "Path"
+        };
+
+        var usesDisallowedTypes = root.DescendantNodes()
+            .OfType<IdentifierNameSyntax>()
+            .Any(identifier => disallowedTypes.Contains(identifier.Identifier.Text));
+
+        if (usesDisallowedTypes)
+        {
+            disallowedNamespaces.Add("Environmental types not allowed.");
+        }
+
         // Dynamically get parameter names from the Run method
         var parameterNames = _compiledMethod?.GetParameters()
             .Select(p => p.Name)
@@ -140,7 +160,7 @@ public class CustomCodeRunner
         if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
         {
             var errorMessages = string.Join(Environment.NewLine, diagnostics.Select(d => d.ToString()));
-            errorMessage = $"Parsing errors:\n{errorMessages}";
+            errorMessage = $"Parsing errors: {errorMessages}";
             return false;
         }
 
@@ -179,7 +199,7 @@ public class CustomCodeRunner
                 diagnostic.IsWarningAsError || diagnostic.Severity == DiagnosticSeverity.Error);
 
             var errorMessages = string.Join(Environment.NewLine, failures.Select(diagnostic => diagnostic.ToString()));
-            errorMessage = $"Compilation errors:\n{errorMessages}";
+            errorMessage = $"Compilation errors: {errorMessages}";
             return false;
         }
 

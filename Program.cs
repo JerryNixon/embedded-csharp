@@ -4,7 +4,7 @@ internal class Program
 {
     private static void Main(string[] args)
     {
-        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true, "{ 'option': true }");
+        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true, "{ \"option\": true }");
         var claim = new claims(true, true, true, true);
 
         Console.WriteLine(Environment.OSVersion);
@@ -29,6 +29,8 @@ internal class Program
             Console.WriteLine("   @item.Id == 1 && !@claims.Read");
             Console.WriteLine("   (@claims.Read != @claims.Update) || @item.Admin");
             Console.WriteLine("   new[] { @item.Admin, @claims.Read }.All(x => x)");
+            Console.WriteLine("   JsonDocument.Parse(@item.Info).RootElement.GetProperty(\"option\").GetBoolean() == true");
+
             Console.ForegroundColor = ConsoleColor.Yellow;
 
             var code = Console.ReadLine();

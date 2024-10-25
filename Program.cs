@@ -4,9 +4,10 @@ internal class Program
 {
     private static void Main(string[] args)
     {
-        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true);
+        var item = new item("1", "John Doe", new DateOnly(2000, 1, 2), true, "{ 'option': true }");
         var claim = new claims(true, true, true, true);
 
+        Console.WriteLine(Environment.OSVersion);
         Console.WriteLine($"@{item}");
         Console.WriteLine($"@{claim}");
 
@@ -16,7 +17,9 @@ internal class Program
             Console.WriteLine();
             Console.WriteLine("Write a predicate like:");
             Console.WriteLine("   @item.Id == 1");
+            Console.WriteLine("   @item.Id == Math.Min(1, 2)");
             Console.WriteLine("   @item.Name.Contains('J')");
+            Console.WriteLine("   Regex.IsMatch(@item.Name, \"j\", RegexOptions.IgnoreCase)");
             Console.WriteLine("   @item.Name.Length > 5");
             Console.WriteLine("   @item.Created.Year == 2000");
             Console.WriteLine("   @claims.Read == true");
@@ -55,7 +58,7 @@ internal class Program
     }
 }
 
-record item(string Id, string Name, DateOnly Created, bool Admin)
+record item(string Id, string Name, DateOnly Created, bool Admin, string Info)
 {
     public (string, object)[] ToArray()
     {
@@ -64,7 +67,8 @@ record item(string Id, string Name, DateOnly Created, bool Admin)
             ("Id", Id),
             ("Name", Name),
             ("Created", Created),
-            ("Admin", Admin)
+            ("Admin", Admin),
+            ("Info", Info)
         ];
     }
 }

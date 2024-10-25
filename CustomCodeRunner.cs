@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Dynamic;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Text.RegularExpressions;
 
 namespace embedded_csharp;
 
@@ -42,39 +43,65 @@ public class CustomCodeRunner
 
         var root = tree.GetRoot();
 
-        var usings = root.DescendantNodes().OfType<UsingDirectiveSyntax>()
-            .Select(u => u.Name?.ToString() ?? string.Empty);
+        // Dynamically get parameter names from the Run method
+        var parameterNames = _compiledMethod?.GetParameters()
+            .Select(p => p.Name)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .ToArray() ?? [];
 
-        var qualifiedNames = root.DescendantNodes().OfType<QualifiedNameSyntax>()
-            .Select(q => ExtractNamespace(q));
+        // Build a regex pattern based on the parameter names
+        var instanceVariablePattern = new Regex(@"^@?(" + string.Join("|", parameterNames) + @")(\..*)?$", RegexOptions.IgnoreCase);
 
-        var allNamespaces = usings
+        // Extract fully qualified names in member access (e.g., System.Math.Min)
+        var qualifiedNames = root.DescendantNodes()
+            .OfType<MemberAccessExpressionSyntax>()
+            .Select(ExtractFullNamespace)
+            .Where(ns => !string.IsNullOrEmpty(ns)
+                         && !_allowedNamespaces.Contains(ns)
+                         && !instanceVariablePattern.IsMatch(ns));
+
+        // Detect any usage of `typeof` or `GetType`
+        var usesReflection = root.DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Any(invocation =>
+            {
+                return invocation.Expression is MemberAccessExpressionSyntax memberAccess
+                    && memberAccess.Name.Identifier.Text == "GetType";
+            }) || root.DescendantNodes().OfType<TypeOfExpressionSyntax>().Any();
+
+        if (usesReflection)
+        {
+            disallowedNamespaces.Add("Reflection is not allowed.");
+        }
+
+        // Combine namespaces from 'using' directives and qualified names in code
+        var allNamespaces = root.DescendantNodes()
+            .OfType<UsingDirectiveSyntax>()
+            .Select(u => u.Name?.ToString() ?? string.Empty)
             .Concat(qualifiedNames)
-            .Where(ns => !string.IsNullOrEmpty(ns))
-            .Distinct()
-            .ToList();
+            .Where(ns => !string.IsNullOrEmpty(ns));
 
-        disallowedNamespaces = allNamespaces.Where(ns => !_allowedNamespaces.Contains(ns)).ToList();
+        // Identify any namespaces that aren't in the allowed list
+        disallowedNamespaces.AddRange(allNamespaces
+            .Where(ns => !_allowedNamespaces.Contains(ns) && !_allowedNamespaces.Contains("System." + ns))
+            .Distinct());
 
         return disallowedNamespaces.Count == 0;
 
-        static string ExtractNamespace(QualifiedNameSyntax qualifiedName)
+        static string ExtractFullNamespace(MemberAccessExpressionSyntax memberAccess)
         {
             var parts = new List<string>();
-            var current = qualifiedName;
+            ExpressionSyntax? current = memberAccess.Expression;
 
-            while (current is QualifiedNameSyntax qn)
+            while (current is MemberAccessExpressionSyntax nestedMemberAccess)
             {
-                parts.Insert(0, qn.Right.Identifier.Text);
-                if (qn.Left is QualifiedNameSyntax leftQualifiedName)
-                {
-                    current = leftQualifiedName;
-                }
-                else if (qn.Left is IdentifierNameSyntax leftIdentifier)
-                {
-                    parts.Insert(0, leftIdentifier.Identifier.Text);
-                    break;
-                }
+                parts.Insert(0, nestedMemberAccess.Name.Identifier.Text);
+                current = nestedMemberAccess.Expression;
+            }
+
+            if (current is IdentifierNameSyntax identifier)
+            {
+                parts.Insert(0, identifier.Identifier.Text);
             }
 
             return string.Join(".", parts);
@@ -93,17 +120,18 @@ public class CustomCodeRunner
 
         var usings = string.Join(Environment.NewLine, _allowedNamespaces
             .Select(ns => ns == "System.Math" ? "using static System.Math;" : $"using {ns};"));
-        var code = $$"""
-        {{usings}}
 
-        public class CustomCode
-        {
-            public static bool Run(dynamic item, dynamic claims) 
+        var code = $$"""
+            {{usings}}
+
+            public class CustomCode
             {
-                return ({{snippet.Replace(";", string.Empty)}});
+                public static bool Run(dynamic item, dynamic claims) 
+                {
+                    return ({{snippet.Replace(";", string.Empty)}});
+                }
             }
-        }
-        """;
+            """;
 
         var tree = CSharpSyntaxTree.ParseText(code);
 
@@ -112,6 +140,18 @@ public class CustomCodeRunner
         {
             var errorMessages = string.Join(Environment.NewLine, diagnostics.Select(d => d.ToString()));
             errorMessage = $"Parsing errors:\n{errorMessages}";
+            return false;
+        }
+
+        var root = tree.GetRoot();
+        var containsLoops = root.DescendantNodes().Any(node =>
+            node is WhileStatementSyntax ||
+            node is ForStatementSyntax ||
+            node is ForEachStatementSyntax);
+
+        if (containsLoops)
+        {
+            errorMessage = "Loops are not allowed.";
             return false;
         }
 

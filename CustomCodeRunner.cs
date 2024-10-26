@@ -43,10 +43,10 @@ public class CustomCodeRunner
 
         var root = tree.GetRoot();
 
+        // Check for disallowed built-in types in the code
         var usesDisallowedTypes = root.DescendantNodes()
             .OfType<IdentifierNameSyntax>()
             .Any(identifier => DisallowedTypes.Contains(identifier.Identifier.Text));
-
         if (usesDisallowedTypes)
         {
             disallowedNamespaces.Add("Environmental types not allowed.");
@@ -58,15 +58,12 @@ public class CustomCodeRunner
             .Where(name => !string.IsNullOrEmpty(name))
             .ToArray() ?? [];
 
-        // Build a regex pattern based on the parameter names
-        var instanceVariablePattern = new Regex(@"^@?(" + string.Join("|", parameterNames) + @")(\..*)?$", RegexOptions.IgnoreCase);
-
         // Extract fully qualified names in member access (e.g., System.Math.Min)
+        var instanceVariablePattern = new Regex(@"^@?(" + string.Join("|", parameterNames) + @")(\..*)?$", RegexOptions.IgnoreCase);
         var qualifiedNames = root.DescendantNodes()
             .OfType<MemberAccessExpressionSyntax>()
             .Select(ExtractFullNamespace)
             .Where(ns => !string.IsNullOrEmpty(ns)
-                         && !_allowedNamespaces.Contains(ns)
                          && !instanceVariablePattern.IsMatch(ns)
                          && !_allowedNamespaces.Any(x => !ns.StartsWith(x)));
 
@@ -78,7 +75,6 @@ public class CustomCodeRunner
                 return invocation.Expression is MemberAccessExpressionSyntax memberAccess
                     && memberAccess.Name.Identifier.Text == "GetType";
             }) || root.DescendantNodes().OfType<TypeOfExpressionSyntax>().Any();
-
         if (usesReflection)
         {
             disallowedNamespaces.Add("Reflection is not allowed.");
@@ -93,7 +89,8 @@ public class CustomCodeRunner
 
         // Identify any namespaces that aren't in the allowed list
         disallowedNamespaces.AddRange(allNamespaces
-            .Where(ns => !_allowedNamespaces.Contains(ns) && !_allowedNamespaces.Contains("System." + ns))
+            .Where(ns => !_allowedNamespaces.Contains(ns)
+                 && !_allowedNamespaces.Any(allowed => ns.StartsWith(allowed + ".")))
             .Distinct());
 
         return disallowedNamespaces.Count == 0;

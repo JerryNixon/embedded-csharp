@@ -7,7 +7,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Dynamic;
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Text.RegularExpressions;
 
 namespace embedded_csharp;
 
@@ -32,87 +31,47 @@ public class CustomCodeRunner
         _allowedNamespaces.UnionWith(allowedNamespaces);
     }
 
-    private bool InspectNamespaces(SyntaxTree tree, out List<string> disallowedNamespaces)
+    private bool ContainsInvalidNamespaces(SyntaxTree syntaxTree, out List<string> namespaces)
     {
-        disallowedNamespaces = [];
+        namespaces = [];
 
-        if (_allowedNamespaces is null)
+        var set = new HashSet<string>(_allowedNamespaces);
+        var compilation = CSharpCompilation.Create(
+            "test",
+            [syntaxTree],
+            Net80.References.All);
+
+        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+        var nodes = syntaxTree
+            .GetRoot()
+            .DescendantNodes()
+            .OfType<IdentifierNameSyntax>();
+
+        foreach (var node in nodes)
         {
-            throw new InvalidOperationException("No allowed namespaces specified.");
-        }
-
-        var root = tree.GetRoot();
-
-        // Check for disallowed built-in types in the code
-        var usesDisallowedTypes = root.DescendantNodes()
-            .OfType<IdentifierNameSyntax>()
-            .Any(identifier => DisallowedTypes.Contains(identifier.Identifier.Text));
-        if (usesDisallowedTypes)
-        {
-            disallowedNamespaces.Add("Environmental types not allowed.");
-        }
-
-        // Dynamically get parameter names from the Run method
-        var parameterNames = _compiledMethod?.GetParameters()
-            .Select(p => p.Name)
-            .Where(name => !string.IsNullOrEmpty(name))
-            .ToArray() ?? [];
-
-        // Extract fully qualified names in member access (e.g., System.Math.Min)
-        var instanceVariablePattern = new Regex(@"^@?(" + string.Join("|", parameterNames) + @")(\..*)?$", RegexOptions.IgnoreCase);
-        var qualifiedNames = root.DescendantNodes()
-            .OfType<MemberAccessExpressionSyntax>()
-            .Select(ExtractFullNamespace)
-            .Where(ns => !string.IsNullOrEmpty(ns)
-                         && !instanceVariablePattern.IsMatch(ns)
-                         && !_allowedNamespaces.Any(x => !ns.StartsWith(x)));
-
-        // Detect any usage of `typeof` or `GetType`
-        var usesReflection = root.DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .Any(invocation =>
+            var info = semanticModel.GetSymbolInfo(node);
+            var ns = info.Symbol switch
             {
-                return invocation.Expression is MemberAccessExpressionSyntax memberAccess
-                    && memberAccess.Name.Identifier.Text == "GetType";
-            }) || root.DescendantNodes().OfType<TypeOfExpressionSyntax>().Any();
-        if (usesReflection)
-        {
-            disallowedNamespaces.Add("Reflection is not allowed.");
-        }
+                ITypeSymbol ts => GetNamespace(ts),
+                ILocalSymbol local => GetNamespace(local.Type),
+                IMethodSymbol method => GetNamespace(method.ContainingType),
+                INamespaceSymbol ns2 => ns2,
+                _ => null,
+            };
 
-        // Combine namespaces from 'using' directives and qualified names in code
-        var allNamespaces = root.DescendantNodes()
-            .OfType<UsingDirectiveSyntax>()
-            .Select(u => u.Name?.ToString() ?? string.Empty)
-            .Concat(qualifiedNames)
-            .Where(ns => !string.IsNullOrEmpty(ns));
-
-        // Identify any namespaces that aren't in the allowed list
-        disallowedNamespaces.AddRange(allNamespaces
-            .Where(ns => !_allowedNamespaces.Contains(ns)
-                 && !_allowedNamespaces.Any(allowed => ns.StartsWith(allowed + ".")))
-            .Distinct());
-
-        return disallowedNamespaces.Count == 0;
-
-        static string ExtractFullNamespace(MemberAccessExpressionSyntax memberAccess)
-        {
-            var parts = new List<string>();
-            ExpressionSyntax? current = memberAccess.Expression;
-
-            while (current is MemberAccessExpressionSyntax nestedMemberAccess)
+            if (ns is { IsGlobalNamespace: false })
             {
-                parts.Insert(0, nestedMemberAccess.Name.Identifier.Text);
-                current = nestedMemberAccess.Expression;
+                var name = ns.ToString();
+                if (!set.Contains(name))
+                {
+                    namespaces.Add(name);
+                }
             }
-
-            if (current is IdentifierNameSyntax identifier)
-            {
-                parts.Insert(0, identifier.Identifier.Text);
-            }
-
-            return string.Join(".", parts);
         }
+
+        return namespaces.Count > 0;
+
+        INamespaceSymbol? GetNamespace(ITypeSymbol? type) => type?.ContainingNamespace;
     }
 
     public bool Compile(string snippet, out string? errorMessage)
@@ -151,28 +110,35 @@ public class CustomCodeRunner
         }
 
         var root = tree.GetRoot();
-        var containsLoops = root.DescendantNodes().Any(node =>
-            node is WhileStatementSyntax ||
-            node is ForStatementSyntax ||
-            node is ForEachStatementSyntax);
 
-        if (containsLoops)
+        if (ContainsLoops(tree))
         {
             errorMessage = "Loops are not allowed.";
             return false;
         }
 
-        if (!InspectNamespaces(tree, out var disallowedNamespaces))
+        if (UsesReflection(tree))
         {
-            var invalidNamespacesMessage = string.Join(", ", disallowedNamespaces);
-            errorMessage = $"Invalid namespaces: {invalidNamespacesMessage}";
+            errorMessage = "Reflection is not allowed.";
+            return false;
+        }
+
+        if (UsesDisallowedTypes(tree))
+        {
+            errorMessage = "Environmental types not allowed.";
+            return false;
+        }
+
+        if (ContainsInvalidNamespaces(tree, out var ns))
+        {
+            errorMessage = $"Invalid namespaces: {string.Join(", ", ns)}";
             return false;
         }
 
         var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary);
         var compilation = CSharpCompilation.Create(
             assemblyName: Guid.NewGuid().ToString(),
-            syntaxTrees: [tree],
+            syntaxTrees: new[] { tree },
             references: Net80.References.All,
             options: options);
 
@@ -208,6 +174,33 @@ public class CustomCodeRunner
         }
 
         return true;
+
+        bool ContainsLoops(SyntaxTree tree)
+        {
+            var root = tree.GetRoot();
+            return root.DescendantNodes().Any(node =>
+                node is WhileStatementSyntax ||
+                node is ForStatementSyntax ||
+                node is ForEachStatementSyntax);
+        }
+
+        bool UsesReflection(SyntaxTree tree)
+        {
+            return tree.GetRoot().DescendantNodes()
+                .OfType<InvocationExpressionSyntax>()
+                .Any(invocation =>
+                    invocation.Expression is MemberAccessExpressionSyntax memberAccess
+                    && memberAccess.Name.Identifier.Text == "GetType")
+                || tree.GetRoot().DescendantNodes().OfType<TypeOfExpressionSyntax>().Any();
+        }
+
+
+        bool UsesDisallowedTypes(SyntaxTree tree)
+        {
+            return tree.GetRoot().DescendantNodes()
+               .OfType<IdentifierNameSyntax>()
+               .Any(identifier => DisallowedTypes.Contains(identifier.Identifier.Text));
+        }
     }
 
     public bool Execute((string Name, object Value)[]? items, (string Name, object Value)[]? claims)

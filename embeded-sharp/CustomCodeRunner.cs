@@ -31,15 +31,18 @@ public class CustomCodeRunner
         _allowedNamespaces.UnionWith(allowedNamespaces);
     }
 
-    private bool ContainsInvalidNamespaces(SyntaxTree syntaxTree, out List<string> namespaces)
+    private bool ContainsInvalidNamespaces(SyntaxTree syntaxTree, out CSharpCompilation compilation, out List<string> namespaces)
     {
         namespaces = [];
 
         var set = new HashSet<string>(_allowedNamespaces);
-        var compilation = CSharpCompilation.Create(
-            "test",
-            [syntaxTree],
-            Net80.References.All);
+
+        var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary);
+        compilation = CSharpCompilation.Create(
+            assemblyName: Guid.NewGuid().ToString(),
+            syntaxTrees: [syntaxTree],
+            references: Net80.References.All,
+            options: options);
 
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
         var nodes = syntaxTree
@@ -129,18 +132,11 @@ public class CustomCodeRunner
             return false;
         }
 
-        if (ContainsInvalidNamespaces(tree, out var ns))
+        if (ContainsInvalidNamespaces(tree, out var compilation, out var ns))
         {
             errorMessage = $"Invalid namespaces: {string.Join(", ", ns)}";
             return false;
         }
-
-        var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary);
-        var compilation = CSharpCompilation.Create(
-            assemblyName: Guid.NewGuid().ToString(),
-            syntaxTrees: new[] { tree },
-            references: Net80.References.All,
-            options: options);
 
         using var stream = new MemoryStream();
         var emitResult = compilation.Emit(stream);
